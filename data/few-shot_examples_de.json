@@ -1,0 +1,80 @@
+[
+  {
+    "id": 181125,
+    "Prämisse": "Ein Mann mittleren Alters mit weißem Bart und Brille hält ein kleines, handgefertigtes Holzschränkchen hoch.",
+    "Hypothese": "Der Mann ist mit leeren Händen.",
+    "Erklärung": "Der Mann hält ein Holzschränkchen. Er hat somit keine leeren Hände.",
+    "Bewertung": {
+      "SprachlicheQualität": 1,
+      "Relevanz": 1,
+      "FaktischeKorrektheit": 1,
+      "NeueInformation": 0,
+      "UnnötigeInformation": 0
+    }
+  },
+  {
+    "id": 194107,
+    "Prämisse": "Eine Frau mit rosa Hemd schläft in einem Auto, bedeckt mit einer blau-weißen Decke.",
+    "Hypothese": "Die Frau ist im Auto mit ihrem Telefon beschäftigt.",
+    "Erklärung": "Die Frau schläft und benutzt kein Telefon. Schlafen und Telefonieren schließen sich aus.",
+    "Bewertung": {
+      "SprachlicheQualität": 1,
+      "Relevanz": 1,
+      "FaktischeKorrektheit": 1,
+      "NeueInformation": 1,
+      "UnnötigeInformation": 0
+    }
+  },
+  {
+    "id": 254945,
+    "Prämisse": "Vier Läufer rennen die Straße hinunter.",
+    "Hypothese": "Die Läufer nehmen an einem Marathon teil.",
+    "Erklärung": "Vier Läufer rennen auf der Straße. Daraus folgt nicht, dass sie an einem Marathon teilnehmen.",
+    "Bewertung": {
+      "SprachlicheQualität": 1,
+      "Relevanz": 1,
+      "FaktischeKorrektheit": 1,
+      "NeueInformation": 0,
+      "UnnötigeInformation": 0
+    }
+  },
+  {
+    "id": 246027,
+    "Prämisse": "Passagiere, die einen Zug besteigen.",
+    "Hypothese": "Die Passagiere steigen in den Zug ein.",
+    "Erklärung": "Es wird beschrieben, dass Personen einen Zug betreten. Es ist nicht klar, ob alle Passagiere tatsächlich einsteigen oder nur am Zug sind.",
+    "Bewertung": {
+      "SprachlicheQualität": 1,
+      "Relevanz": 1,
+      "FaktischeKorrektheit": 0,
+      "NeueInformation": 0,
+      "UnnötigeInformation": 0
+    }
+  },
+  {
+    "id": 127721,
+    "Prämisse": "Eine verkleidete Frau trägt Make-up auf, während sie in einen Spiegel blickt.",
+    "Hypothese": "Eine Frau trägt Make-up auf.",
+    "Erklärung": "Eine Frau trägt Make-up auf. Die Frau ist verkleidet.",
+    "Bewertung": {
+      "SprachlicheQualität": 1,
+      "Relevanz": 1,
+      "FaktischeKorrektheit": 1,
+      "NeueInformation": 0,
+      "UnnötigeInformation": 1
+    }
+  },
+  {
+    "id": 32674,
+    "Prämisse": "Ein warm angezogener Mann steht mit einer Schneidestation auf der Straße vor seiner Drehspießmaschine.",
+    "Hypothese": "Ein Mann, der winterlich gekleidet ist, steht neben einem Drehspießgerät.",
+    "Erklärung": "Ein Mann ist warm angezogen. Er steht vor einer Drehspießmaschine. Eine Schneidestation ist ebenfalls vorhanden. \"Neben\" und \"vor\" sind unterschiedliche Ortsangaben.",
+    "Bewertung": {
+      "SprachlicheQualität": 1,
+      "Relevanz": 1,
+      "FaktischeKorrektheit": 0,
+      "NeueInformation": 1,
+      "UnnötigeInformation": 1
+    }
+  }
+]
