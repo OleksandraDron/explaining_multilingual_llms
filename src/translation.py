@@ -1,8 +1,9 @@
 import os
-import pandas as pd
-from openai import OpenAI
-from dotenv import load_dotenv
 from typing import Optional
+
+import pandas as pd
+from dotenv import load_dotenv
+from openai import OpenAI
 
 
 class Translation:
@@ -12,32 +13,25 @@ class Translation:
     """
 
     def __init__(
-            self,
-            model_name: str = "gpt-4o",
-            system_prompt: Optional[str] = None,
+        self,
+        model_name="gpt-4.1-mini",
+        system_prompt: Optional[str] = None,
+        base_url=None,
+        api_key=None,
     ):
         load_dotenv(override=True)
 
         self.model_name = model_name
-
-        # Option 1: OpenAI (default)
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in environment variables.")
-
-        self.client = OpenAI(api_key=api_key)
-
-        # Option 2: Academic Cloud (Qwen 2.5 72B)
-        # Uncomment to use Qwen via Academic API
-        #
-        # ACADEMIC_API_KEY = "xxxxxxxx"
-        # BASE_URL = "https://chat-ai.academiccloud.de/v1"
-        #
-        # self.client = OpenAI(
-        #     api_key=ACADEMIC_API_KEY,
-        #     base_url=BASE_URL
-        # )
-        # self.model_name = "qwen2.5-72b-instruct"
+        if base_url:
+            api_key = api_key or os.getenv("ACADEMIC_API_KEY") or os.getenv("QWEN_API_KEY")
+            if not api_key:
+                raise ValueError("ACADEMIC_API_KEY (or QWEN_API_KEY) not found in environment variables.")
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
+        else:
+            api_key = api_key or os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY not found in environment variables.")
+            self.client = OpenAI(api_key=api_key)
 
         self.system_prompt = system_prompt or (
             "You are a professional English-German translator. "
@@ -46,7 +40,7 @@ class Translation:
             "Keep numbers, entities, and structure unchanged."
         )
 
-    def translate(self, text: str) -> str:
+    def translate(self, text):
         """
         Translate a text.
         """

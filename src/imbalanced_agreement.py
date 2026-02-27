@@ -79,12 +79,12 @@ class ImbalancedAgreementCalculator:
             }
         }
 
-    def compute_multiple_dimensions(self, dimensions: list, suffix_1="_1"):
+    def compute_multiple_dimensions(self, dimensions, suffix_1="_1", suffix_2="_2"):
         results = {}
 
         for dim in dimensions:
             col1 = f"{dim}{suffix_1}"
-            col2 = dim
+            col2 = f"{dim}{suffix_2}"
 
             results[dim] = self.compute_metrics(col1, col2)
 

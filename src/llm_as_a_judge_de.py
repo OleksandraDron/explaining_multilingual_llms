@@ -1,6 +1,5 @@
 import json
 import os
-import argparse
 
 import pandas as pd
 
@@ -299,44 +298,3 @@ def run_api_judge(
         save_every=save_every,
         max_new_tokens=max_new_tokens,
     )
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Run German LLM-as-a-judge.")
-    parser.add_argument("--backend", choices=["hf", "api"], default="hf")
-    parser.add_argument("--input", default="data/esnli_de_generated_ger_explanations_gpt41mini.xlsx")
-    parser.add_argument("--output", default=None)
-    parser.add_argument("--fewshot", default="data/few-shot_examples_de.json")
-    parser.add_argument("--save-every", type=int, default=5)
-    parser.add_argument("--max-new-tokens", type=int, default=180)
-    parser.add_argument("--model", default=None, help="HF model_id or API model name")
-    parser.add_argument("--base-url", default="https://chat-ai.academiccloud.de/v1")
-    args = parser.parse_args()
-
-    if args.backend == "hf":
-        output = args.output or "data/results_llm-as-a-judge/result_de_prometheus.xlsx"
-        model_id = args.model or "prometheus-eval/prometheus-7b-v2.0"
-        run_hf_judge(
-            input_excel=args.input,
-            output_excel=output,
-            fewshot_json=args.fewshot,
-            model_id=model_id,
-            save_every=args.save_every,
-            max_new_tokens=args.max_new_tokens,
-        )
-    else:
-        output = args.output or "data/results_llm-as-a-judge/result_de_qwen.xlsx"
-        model = args.model or "qwen2.5-72b-instruct"
-        run_api_judge(
-            input_excel=args.input,
-            output_excel=output,
-            fewshot_json=args.fewshot,
-            base_url=args.base_url,
-            model=model,
-            save_every=args.save_every,
-            max_new_tokens=args.max_new_tokens,
-        )
-
-
-if __name__ == "__main__":
-    main()

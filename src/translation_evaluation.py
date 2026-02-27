@@ -1,4 +1,3 @@
-import argparse
 import os
 from pathlib import Path
 
@@ -14,11 +13,11 @@ class TranslationEvaluation:
         comet_model_name="Unbabel/wmt22-cometkiwi-da",
     ):
         project_root = Path(__file__).resolve().parents[1]
-        self.data_dir = data_dir or (project_root / "data" / "translated_dataset")
+        self.data_dir = data_dir or (project_root / "data" / "translated_and_generated_dataset")
         self.datasets = datasets or {
             "qwen_backtranslation": "esnli_selected_translated_qwen_backtranslated.csv",
-            "gpt41mini_backtranslation": "esnli_selected_translated_gpt41mini_backtranslated.csv",
-            "llama3_backtranslation": "esnli_selected_translated_llama3_backtranslated.csv",
+            # "gpt41mini_backtranslation": "esnli_selected_translated_gpt41mini_backtranslated.csv",
+            # "llama3_backtranslation": "esnli_selected_translated_llama3_backtranslated.csv",
         }
         self.column_pairs = [
             ("Sentence1", "Back_Sentence1"),
@@ -118,37 +117,59 @@ class TranslationEvaluation:
             result["comet_qe"] = self.evaluate_comet_qe(df)
         return result
 
-    def evaluate_all(self, include_comet=False):
-        all_results = {}
-        for dataset_key in self.datasets:
-            try:
-                all_results[dataset_key] = self.evaluate_one(dataset_key, include_comet=include_comet)
-            except FileNotFoundError as e:
-                print(f"[Skip] {e}")
-                continue
-        return all_results
+class HumanEvalICC:
+    def __init__(self, data_dir=None, filename="esnli_translation_de_human_eval.xlsx"):
+        project_root = Path(__file__).resolve().parents[1]
+        self.data_dir = data_dir or (project_root / "data" / "translated_and_generated_dataset")
+        self.file_path = self.data_dir / filename
 
+    def load_df(self):
+        if not self.file_path.exists():
+            raise FileNotFoundError(f"Human eval file not found: {self.file_path}")
+        return pd.read_excel(self.file_path)
 
-def main():
-    parser = argparse.ArgumentParser(description="Translation evaluation with BLEU/chrF and optional COMET-QE.")
-    parser.add_argument("--dataset", type=str, default=None, help="Example: qwen_backtranslation")
-    parser.add_argument("--with-comet", action="store_true", help="Enable COMET-QE scoring.")
-    args = parser.parse_args()
+    def compute_icc_2_1(self, df, rater_cols):
+        part = df[list(rater_cols)].apply(pd.to_numeric, errors="coerce").dropna()
+        if part.empty:
+            return {"icc_2_1": None, "n_items": 0, "n_raters": len(rater_cols)}
 
-    evaluator = TranslationEvaluation()
-    if args.dataset:
-        results = {args.dataset: evaluator.evaluate_one(args.dataset, include_comet=args.with_comet)}
-    else:
-        results = evaluator.evaluate_all(include_comet=args.with_comet)
+        ratings = part.to_numpy(dtype=float)
+        n, k = ratings.shape
 
-    for dataset_key, outputs in results.items():
-        print(f"\n===== {dataset_key} =====")
-        print("\n[BLEU/chrF]")
-        print(outputs["bleu_chrf"].to_string(index=False))
-        if "comet_qe" in outputs:
-            print("\n[COMET-QE]")
-            print(outputs["comet_qe"].to_string(index=False))
+        grand_mean = ratings.mean()
+        row_means = ratings.mean(axis=1)
+        col_means = ratings.mean(axis=0)
 
+        ss_rows = k * ((row_means - grand_mean) ** 2).sum()
+        ss_cols = n * ((col_means - grand_mean) ** 2).sum()
+        ss_total = ((ratings - grand_mean) ** 2).sum()
+        ss_error = ss_total - ss_rows - ss_cols
 
-if __name__ == "__main__":
-    main()
+        ms_rows = ss_rows / (n - 1) if n > 1 else 0.0
+        ms_cols = ss_cols / (k - 1) if k > 1 else 0.0
+        ms_error = ss_error / ((n - 1) * (k - 1)) if n > 1 and k > 1 else 0.0
+
+        denominator = ms_rows + (k - 1) * ms_error + (k * (ms_cols - ms_error) / n)
+        icc = (ms_rows - ms_error) / denominator if denominator != 0 else None
+
+        return {"icc_2_1": icc, "n_items": n, "n_raters": k}
+
+    def evaluate(self):
+        df = self.load_df()
+        sentence1 = self.compute_icc_2_1(df, ("Sen1_Human1", "Sen1_Human2"))
+        sentence2 = self.compute_icc_2_1(df, ("Sen2_Human1", "Sen2_Human2"))
+
+        return pd.DataFrame(
+            [
+                {
+                    "field": "Sentence1",
+                    "rater_cols": "Sen1_Human1,Sen1_Human2",
+                    **sentence1,
+                },
+                {
+                    "field": "Sentence2",
+                    "rater_cols": "Sen2_Human1,Sen2_Human2",
+                    **sentence2,
+                },
+            ]
+        )
