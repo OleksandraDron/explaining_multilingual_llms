@@ -10,6 +10,7 @@ This project explores multilingual explanation generation and evaluation for Nat
 
 ## Project Structure
 - `src/translation.py`
+- `src/explanation_generation_en.py`
 - `src/explanation_generation_de.py`
 - `src/evaluation.py`
 - `src/main.py`
