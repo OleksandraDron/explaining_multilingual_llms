@@ -4,7 +4,7 @@ This project explores multilingual explanation generation and evaluation for Nat
 
 ## Project Scope
 - English to German machine translation
-- German explanation generation
+- English and German explanation generation
 - Automatic evaluation
 - LLM-as-a-Judge experiments
 
