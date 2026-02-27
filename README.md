@@ -12,9 +12,10 @@ This project explores multilingual explanation generation and evaluation for Nat
 - `src/translation.py`
 - `src/explanation_generation_en.py`
 - `src/explanation_generation_de.py`
-- `src/evaluation.py`
-- `src/main.py`
-- `src/faithfulness.py`- re-engineered CCSHAP 
+- `src/translation_evaluation.py`
+- `src/llm_as_a_judge_de.py`
+- `src/imbalanced_agreement.py`
+- `src/faithfulness.py` - re-engineered CCSHAP
 
 ## Requirements
 - Python 3.10 or higher

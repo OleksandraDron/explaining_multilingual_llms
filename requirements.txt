@@ -1,3 +1,18 @@
-# Add project dependencies here.
 openai
 python-dotenv
+pandas
+numpy
+sacrebleu
+scikit-learn
+scipy
+matplotlib
+torch
+transformers
+accelerate
+bert-score
+spacy
+nltk
+tqdm
+ipython
+openpyxl
+unbabel-comet
