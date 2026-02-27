@@ -1,173 +1,208 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-gen_explanations_en.py 
-Batch-generate English explanations for e-SNLI subset using DeepSeek API.
-
-Requirements:
-  pip install -U openai pandas tqdm openpyxl
-
-"""
-
 import os
 import time
 import random
-from typing import Dict, Any
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, List
 
 import pandas as pd
 from tqdm import tqdm
-from openai import OpenAI 
+from openai import OpenAI
 
-# --- Config ---
-INPUT_PATH = "data/esnli_selected.xlsx"
-SHEET_NAME = "English"
-OUTPUT_DIR = "outputs"
-CHECKPOINT_DIR = os.path.join(OUTPUT_DIR, "checkpoints")
-FINAL_OUTPUT = os.path.join(OUTPUT_DIR, "esnli_generated_deepseek_en.xlsx")
 
-MODEL_NAME = "deepseek-chat"  
-BASE_URL = "https://api.deepseek.com"  
-MAX_TOKENS = 80
-TEMPERATURE = 0.7
-TOP_P = 0.9
-CHECKPOINT_EVERY = 100
-MAX_RETRIES = 5
-RESUME_FROM_EXISTING = True
+@dataclass
+class ExplanationGenerationENConfig:
+    input_path: str = "data/esnli_selected.xlsx"
+    sheet_name: str = "English"
+    output_dir: str = "outputs"
+    final_output: str = "esnli_generated_deepseek_en.xlsx"
+    model_name: str = "deepseek-chat"
+    base_url: str = "https://api.deepseek.com"
+    max_tokens: int = 80
+    temperature: float = 0.7
+    top_p: float = 0.9
+    checkpoint_every: int = 100
+    max_retries: int = 5
+    resume_from_existing: bool = True
+    api_key_env: str = "DEEPSEEK_API_KEY"
 
-def setup_client() -> OpenAI:
-    api_key = os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
-        raise SystemExit("Missing env var DEEPSEEK_API_KEY. Set it via: export DEEPSEEK_API_KEY=sk-xxxx")
-    client = OpenAI(api_key=api_key, base_url=BASE_URL)
-    return client
 
-def ensure_dirs():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+class ExplanationGenerationEN:
+    """
+    Batch-generate English explanations for e-SNLI subset using DeepSeek API (OpenAI-compatible).
+    """
 
-def load_dataframe() -> pd.DataFrame:
-    if not os.path.exists(INPUT_PATH):
-        raise FileNotFoundError(f"Input file not found: {INPUT_PATH}")
-    df = pd.read_excel(INPUT_PATH, sheet_name=SHEET_NAME)
-    expected = {"idx", "gold_label", "Sentence1", "Sentence2", "Explanation_1"}
-    missing = expected - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing columns in sheet '{SHEET_NAME}': {missing}")
-    for col in ["Generated_Explanation_EN", "Prompt_Tokens", "Completion_Tokens", "Total_Tokens"]:
-        if col not in df.columns:
-            df[col] = None
-    return df
+    def __init__(self, config: ExplanationGenerationENConfig):
+        self.cfg = config
+        self.checkpoint_dir = os.path.join(self.cfg.output_dir, "checkpoints")
+        self.client: Optional[OpenAI] = None
+        self.df: Optional[pd.DataFrame] = None
 
-def build_prompt(premise: str, hypothesis: str, label: str) -> str:
-    return (
-        "Given the following natural language inference task:\n"
-        f'Premise: "{premise}"\n'
-        f'Hypothesis: "{hypothesis}"\n'
-        f"Label: {label}.\n\n"
-        "Write a short (1–3 sentences), clear, and logically consistent English explanation "
-        "that justifies why the label is correct. "
-        "Avoid introducing new facts not supported by the premise."
-    )
-
-def call_deepseek(client: OpenAI, messages, max_retries: int = MAX_RETRIES) -> Dict[str, Any]:
-    """OpenAI v1-style /chat/completions call with retry."""
-    for attempt in range(max_retries):
-        try:
-            resp = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                max_tokens=MAX_TOKENS,
-                temperature=TEMPERATURE,
-                top_p=TOP_P,
-                stream=False,
+    # ---------- Setup ----------
+    def setup_client(self) -> OpenAI:
+        api_key = os.getenv(self.cfg.api_key_env)
+        if not api_key:
+            raise SystemExit(
+                f"Missing env var {self.cfg.api_key_env}. Set it via: export {self.cfg.api_key_env}=sk-xxxx"
             )
-            return resp
-        except Exception as e:
-            wait = (2 ** attempt) + random.uniform(0, 0.5)
-            print(f"[Warn] API error on attempt {attempt + 1}/{max_retries}: {e} -> retry in {wait:.1f}s")
-            time.sleep(wait)
-    raise RuntimeError("Failed after maximum retries.")
+        self.client = OpenAI(api_key=api_key, base_url=self.cfg.base_url)
+        return self.client
 
-def save_checkpoint(df: pd.DataFrame, upto_index: int):
-    ckpt_path = os.path.join(CHECKPOINT_DIR, f"ckpt_{upto_index:04d}.xlsx")
-    df.to_excel(ckpt_path, index=False)
-    print(f"[Checkpoint] Saved: {ckpt_path}")
+    def ensure_dirs(self) -> None:
+        os.makedirs(self.cfg.output_dir, exist_ok=True)
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-def main():
-    client = setup_client()
-    ensure_dirs()
-    df = load_dataframe()
+    # ---------- Data ----------
+    def load_dataframe(self) -> pd.DataFrame:
+        if not os.path.exists(self.cfg.input_path):
+            raise FileNotFoundError(f"Input file not found: {self.cfg.input_path}")
 
-    if RESUME_FROM_EXISTING and os.path.exists(FINAL_OUTPUT):
-        print(f"[Resume] Loading existing output: {FINAL_OUTPUT}")
-        df_existing = pd.read_excel(FINAL_OUTPUT)
-        if "idx" in df.columns and "idx" in df_existing.columns:
-            cols = ["Generated_Explanation_EN", "Prompt_Tokens", "Completion_Tokens", "Total_Tokens"]
+        df = pd.read_excel(self.cfg.input_path, sheet_name=self.cfg.sheet_name)
+
+        expected = {"idx", "gold_label", "Sentence1", "Sentence2", "Explanation_1"}
+        missing = expected - set(df.columns)
+        if missing:
+            raise ValueError(f"Missing columns in sheet '{self.cfg.sheet_name}': {missing}")
+
+        for col in ["Generated_Explanation_EN", "Prompt_Tokens", "Completion_Tokens", "Total_Tokens"]:
+            if col not in df.columns:
+                df[col] = None
+
+        self.df = df
+        return df
+
+    def maybe_resume(self) -> None:
+        """
+        If resume enabled and final output exists, merge the generated columns back into current df via idx.
+        """
+        assert self.df is not None, "Dataframe not loaded."
+
+        if not (self.cfg.resume_from_existing and os.path.exists(self.cfg.final_output)):
+            return
+
+        print(f"[Resume] Loading existing output: {self.cfg.final_output}")
+        df_existing = pd.read_excel(self.cfg.final_output)
+
+        cols = ["Generated_Explanation_EN", "Prompt_Tokens", "Completion_Tokens", "Total_Tokens"]
+        if "idx" in self.df.columns and "idx" in df_existing.columns:
+            # Remove possibly stale columns then merge
             for c in cols:
-                if c in df.columns:
-                    df.drop(columns=[c], inplace=True)
-            df = df.merge(df_existing[["idx"] + cols], on="idx", how="left")
+                if c in self.df.columns:
+                    self.df.drop(columns=[c], inplace=True)
+
+            keep_cols = ["idx"] + [c for c in cols if c in df_existing.columns]
+            self.df = self.df.merge(df_existing[keep_cols], on="idx", how="left")
         else:
-            for col in ["Generated_Explanation_EN", "Prompt_Tokens", "Completion_Tokens", "Total_Tokens"]:
-                if col not in df.columns:
-                    df[col] = None
-            for col in ["Generated_Explanation_EN", "Prompt_Tokens", "Completion_Tokens", "Total_Tokens"]:
-                if col in df_existing.columns:
-                    df.loc[df[col].isna(), col] = df_existing.loc[df[col].isna(), col]
+            # Fallback: align row-wise if idx missing (less safe)
+            for c in cols:
+                if c not in self.df.columns:
+                    self.df[c] = None
+            for c in cols:
+                if c in df_existing.columns:
+                    mask = self.df[c].isna()
+                    self.df.loc[mask, c] = df_existing.loc[mask, c]
 
-    total_rows = len(df)
-    print(f"[Info] Total rows: {total_rows}")
+    # ---------- Prompting / API ----------
+    @staticmethod
+    def build_prompt(premise: str, hypothesis: str, label: str) -> str:
+        return (
+            "Given the following natural language inference task:\n"
+            f'Premise: "{premise}"\n'
+            f'Hypothesis: "{hypothesis}"\n'
+            f"Label: {label}.\n\n"
+            "Write a short (1–3 sentences), clear, and logically consistent English explanation "
+            "that justifies why the label is correct. "
+            "Avoid introducing new facts not supported by the premise."
+        )
 
-    pbar = tqdm(range(total_rows), desc="Generating EN explanations")
+    def call_api(self, messages: List[Dict[str, str]]) -> Any:
+        """
+        OpenAI v1-style /chat/completions call with retry.
+        Returns the raw response object.
+        """
+        assert self.client is not None, "Client not initialized."
 
-    for i in pbar:
-        if pd.notna(df.at[i, "Generated_Explanation_EN"]) and str(df.at[i, "Generated_Explanation_EN"]).strip():
-            continue
+        for attempt in range(self.cfg.max_retries):
+            try:
+                resp = self.client.chat.completions.create(
+                    model=self.cfg.model_name,
+                    messages=messages,
+                    max_tokens=self.cfg.max_tokens,
+                    temperature=self.cfg.temperature,
+                    top_p=self.cfg.top_p,
+                    stream=False,
+                )
+                return resp
+            except Exception as e:
+                wait = (2**attempt) + random.uniform(0, 0.5)
+                print(f"[Warn] API error on attempt {attempt + 1}/{self.cfg.max_retries}: {e} -> retry in {wait:.1f}s")
+                time.sleep(wait)
 
-        premise = str(df.at[i, "Sentence1"])
-        hypothesis = str(df.at[i, "Sentence2"])
-        label = str(df.at[i, "gold_label"])
+        raise RuntimeError("Failed after maximum retries.")
 
-        prompt = build_prompt(premise, hypothesis, label)
-        messages = [
-            {"role": "system", "content": "You are an expert in natural language inference explanations."},
-            {"role": "user", "content": prompt},
-        ]
+    # ---------- Persistence ----------
+    def save_checkpoint(self, upto_index: int) -> None:
+        assert self.df is not None, "Dataframe not loaded."
+        ckpt_path = os.path.join(self.checkpoint_dir, f"ckpt_{upto_index:04d}.xlsx")
+        self.df.to_excel(ckpt_path, index=False)
+        print(f"[Checkpoint] Saved: {ckpt_path}")
 
-        try:
-            resp = call_deepseek(client, messages)
-            content = resp.choices[0].message.content.strip() if resp.choices else ""
+    def save_final(self) -> None:
+        assert self.df is not None, "Dataframe not loaded."
+        self.df.to_excel(self.cfg.final_output, index=False)
+        print(f"[Done] Saved final output to: {self.cfg.final_output}")
 
-            usage = getattr(resp, "usage", None)
-            prompt_toks = getattr(usage, "prompt_tokens", None) if usage else None
-            completion_toks = getattr(usage, "completion_tokens", None) if usage else None
-            total_toks = getattr(usage, "total_tokens", None) if usage else None
+    
 
-            df.at[i, "Generated_Explanation_EN"] = content
-            df.at[i, "Prompt_Tokens"] = prompt_toks
-            df.at[i, "Completion_Tokens"] = completion_toks
-            df.at[i, "Total_Tokens"] = total_toks
+    # ---------- Main run ----------
+    def run(self) -> None:
+        self.ensure_dirs()
+        self.setup_client()
+        self.load_dataframe()
+        self.maybe_resume()
 
-        except Exception as e:
-            df.at[i, "Generated_Explanation_EN"] = f"[Error: {e}]"
+        assert self.df is not None
+        total_rows = len(self.df)
+        print(f"[Info] Total rows: {total_rows}")
 
-        if (i + 1) % CHECKPOINT_EVERY == 0:
-            save_checkpoint(df, i + 1)
+        pbar = tqdm(range(total_rows), desc="Generating EN explanations")
 
-    df.to_excel(FINAL_OUTPUT, index=False)
-    print(f"[Done] Saved final output to: {FINAL_OUTPUT}")
+        for i in pbar:
+            existing = self.df.at[i, "Generated_Explanation_EN"]
+            if pd.notna(existing) and str(existing).strip():
+                continue
 
-    # Rough cost estimate if usage available (upper bound assumes input cache-miss)
-    if "Total_Tokens" in df.columns and df["Total_Tokens"].notna().any():
-        out_tokens = pd.to_numeric(df["Completion_Tokens"], errors="coerce").fillna(0).sum()
-        in_tokens = pd.to_numeric(df["Prompt_Tokens"], errors="coerce").fillna(0).sum()
-        cost_in = (in_tokens / 1_000_000.0) * 0.28
-        cost_out = (out_tokens / 1_000_000.0) * 0.42
-        print(f"[Usage] Prompt tokens: {int(in_tokens):,} | Completion tokens: {int(out_tokens):,}")
-        print(f"[Cost ] Est. input ${cost_in:.4f} + output ${cost_out:.4f} = total ${cost_in + cost_out:.4f} (upper bound)")
-    else:
-        print("[Usage] Token usage not returned by API; cost estimate skipped.")
+            premise = str(self.df.at[i, "Sentence1"])
+            hypothesis = str(self.df.at[i, "Sentence2"])
+            label = str(self.df.at[i, "gold_label"])
 
-if __name__ == "__main__":
-    main()
+            prompt = self.build_prompt(premise, hypothesis, label)
+            messages = [
+                {"role": "system", "content": "You are an expert in natural language inference explanations."},
+                {"role": "user", "content": prompt},
+            ]
+
+            try:
+                resp = self.call_api(messages)
+
+                content = resp.choices[0].message.content.strip() if getattr(resp, "choices", None) else ""
+                usage = getattr(resp, "usage", None)
+                prompt_toks = getattr(usage, "prompt_tokens", None) if usage else None
+                completion_toks = getattr(usage, "completion_tokens", None) if usage else None
+                total_toks = getattr(usage, "total_tokens", None) if usage else None
+
+                self.df.at[i, "Generated_Explanation_EN"] = content
+                self.df.at[i, "Prompt_Tokens"] = prompt_toks
+                self.df.at[i, "Completion_Tokens"] = completion_toks
+                self.df.at[i, "Total_Tokens"] = total_toks
+
+            except Exception as e:
+                self.df.at[i, "Generated_Explanation_EN"] = f"[Error: {e}]"
+
+            if self.cfg.checkpoint_every > 0 and (i + 1) % self.cfg.checkpoint_every == 0:
+                self.save_checkpoint(i + 1)
+
+        self.save_final()
+        self.print_cost_estimate()

@@ -63,19 +63,3 @@ class BERTScoreEvaluator:
         self.compute_scores()
         self.save_results()
 
-  def main():
-    evaluator = BERTScoreEvaluator(
-        input_file="data/English_dataset_extension.xlsx",
-        output_file="data/BERTScore_roberta-large_rescaled.xlsx",
-        reference_column="Explanation_1",
-        candidate_column="Generated_Explanation_EN",
-        model_type="roberta-large",
-        lang="en",
-        rescale=True,
-    )
-
-    evaluator.run()
-
-
-if __name__ == "__main__":
-    main()

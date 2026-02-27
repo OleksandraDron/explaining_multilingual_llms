@@ -6,6 +6,8 @@ from src.imbalanced_agreement import ImbalancedAgreementCalculator
 from src.llm_as_a_judge_de import run_api_judge, run_hf_judge
 from src.translation import Translation
 from src.translation_evaluation import HumanEvalICC, TranslationEvaluation
+from src.explanation_generation_en import ExplanationGenerationEN, ExplanationGenerationENConfig
+from src.calculate_BERTScore import BERTScoreEvaluator
 
 
 BASE_URL_ACADEMIC = "https://chat-ai.academiccloud.de/v1"
@@ -158,6 +160,38 @@ def run_llm_judge(args):
             max_new_tokens=args.judge_max_new_tokens,
         )
 
+def run_explanation_en(args):
+    cfg = ExplanationGenerationENConfig(
+        input_path=args.en_input,
+        sheet_name="English",
+        output_dir="outputs",
+        final_output=args.en_output,
+        model_name="deepseek-chat",
+        base_url="https://api.deepseek.com",
+        max_tokens=80,
+        temperature=0.7,
+        top_p=0.9,
+        checkpoint_every=100,
+        max_retries=5,
+        resume_from_existing=args.en_resume,
+        api_key_env="DEEPSEEK_API_KEY",
+    )
+    ExplanationGenerationEN(cfg).run()
+    
+    
+def run_bertscore(args):
+    evaluator = BERTScoreEvaluator(
+        input_file=args.bertscore_input,
+        output_file=args.bertscore_output,
+        reference_column="Explanation_1",
+        candidate_column="Generated_Explanation_EN",
+        model_type="roberta-large",
+        lang="en",
+        rescale=True, 
+    )
+    evaluator.run()       
+
+
 
 def main():
     parser = argparse.ArgumentParser(description="Project main entrypoint.")
@@ -184,6 +218,11 @@ def main():
         default="data/translated_and_generated_dataset/esnli_de_generated_ger_explanations_gpt41mini.xlsx",
     )
     parser.add_argument("--de-model", default="gpt-4.1-mini")
+    parser.add_argument("--en-input", default="data/esnli_selected.xlsx")
+    parser.add_argument("--en-output", default="outputs/esnli_generated_deepseek_en.xlsx")
+    parser.add_argument("--en-resume", action="store_true")
+    parser.add_argument("--bertscore-input", default="data/English_human_evaluation.xlsx")
+    parser.add_argument("--bertscore-output", default="data/BERTScore_results.xlsx")
     args = parser.parse_args()
 
     if args.module == "translation":
@@ -196,6 +235,10 @@ def main():
         run_agreement(args)
     elif args.module == "llm_judge":
         run_llm_judge(args)
+    elif args.module == "bertscore":
+        run_bertscore(args)
+    elif args.module == "explanation_en":
+        run_explanation_en(args)
     else:
         print(f"Module not implemented yet: {args.module}")
 
